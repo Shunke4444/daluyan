@@ -114,6 +114,7 @@ this proves the loop, it does not replace the aggregator bake-off for production
 | `PHILSMS_API_TOKEN` / `PHILSMS_SENDER` | — | app.philsms.com Bearer token + registered sender |
 | `SMSGATE_LOGIN` / `SMSGATE_PASSWORD` / `SMSGATE_URL` | cloud URL | SMSGate app (sideload; two-way free path) |
 | `TRACCAR_TOKEN` / `TRACCAR_URL` | cloud URL | Traccar SMS Gateway app (Play Store; send-only free path) |
+| `IPROG_API_TOKEN` | — | IPROG SMS: ₱1/SMS, packages from ₱100, no expiry, free KYC trial credits (Globe/TM/DITO on shared sender; Smart/TNT needs own sender name) |
 | `DALUYAN_BRGY` | Brgy Mahogany, Marilao | barangay name in messages |
 | `DALUYAN_DB` | ./daluyan.db | SQLite path |
 | `DEMO_FAST` | off | retry backoff in seconds (demo) instead of minutes |

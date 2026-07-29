@@ -202,9 +202,45 @@ class TraccarGateway:
     def balance(self):
         return "SIM plan (phone gateway)"
 
+
+class IprogGateway:
+    """IPROG SMS (iprogsms.com, IPROG TECH) - verified 2026: PHP1/SMS, packages from PHP100,
+    credits never expire, free KYC trial credits. Docs fetched 2026-07-22.
+    CHEAPEST pay-per-use entry point for small drills. LIMIT: shared sender 'iprogSMS'
+    reaches Globe/TM/DITO/GOMO only - Smart/TNT recipients need your own approved sender
+    name (free to request). Use their /phone_numbers/detect endpoint to audit the registry.
+    Env: IPROG_API_TOKEN"""
+    name = "iprog"
+    BASE = "https://www.iprogsms.com/api/v1"
+    def __init__(self):
+        self.token = os.environ["IPROG_API_TOKEN"]
+    def send(self, phone, body, priority=False, attempt=0):
+        import requests
+        payload = {"api_token": self.token, "phone_number": phone, "message": body}
+        try:
+            r = requests.post(self.BASE + "/sms_messages", json=payload, timeout=TIMEOUT)
+            j = {}
+            try:
+                j = r.json()
+            except Exception:
+                pass
+            if r.status_code == 200 and str(j.get("status")) in ("200", "success"):
+                return True, ""
+            return False, "iprog HTTP %s: %s" % (r.status_code, str(j.get("message") or r.text)[:120])
+        except Exception as e:
+            return False, "iprog %s: %s" % (type(e).__name__, e)
+    def balance(self):
+        import requests
+        try:
+            r = requests.get(self.BASE + "/account/sms_credits", params={"api_token": self.token}, timeout=TIMEOUT)
+            return "%s credits" % r.json().get("data", {}).get("load_balance", "?")
+        except Exception:
+            return None
+
 _REGISTRY = {"mock": MockGateway, "semaphore": SemaphoreGateway,
              "unisms": UniSMSGateway, "philsms": PhilSMSGateway,
-             "smsgate": SmsGateGateway, "android": SmsGateGateway, "traccar": TraccarGateway}
+             "smsgate": SmsGateGateway, "android": SmsGateGateway, "traccar": TraccarGateway,
+             "iprog": IprogGateway}
 
 def _make(name):
     name = name.strip().lower()
