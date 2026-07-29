@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Audit log <a class="btn sec" style="float:right" href="/audit.csv">Export CSV (COA-friendly)</a></h2>
+<h3>Sends (latest 300)</h3>
+<table><tr><th>id</th><th>alert</th><th>to</th><th>kind</th><th>status</th><th>att</th><th>body</th><th>error</th><th>at</th></tr>
+{% for s in sends %}<tr><td>{{ s.id }}</td><td>{{ s.alert_id }}</td><td>{{ s.name or s.phone }}</td><td>{{ s.kind }}</td>
+<td><span class="badge {% if s.status=='sent' %}green{% elif s.status=='unreached' %}red{% else %}amber{% endif %}">{{ s.status }}</span></td>
+<td>{{ s.attempts }}</td><td style="white-space:pre-wrap">{{ s.body }}</td><td class="muted">{{ s.error }}</td><td class="muted">{{ s.created_at }}</td></tr>{% endfor %}</table>
+<h3>Replies (latest 300)</h3>
+<table><tr><th>id</th><th>alert</th><th>from</th><th>keyword</th><th>raw</th><th>handled</th><th>at</th></tr>
+{% for r in replies %}<tr><td>{{ r.id }}</td><td>{{ r.alert_id }}</td><td>{{ r.name or r.phone }}</td>
+<td>{% if r.keyword %}<span class="badge">{{ r.keyword }}</span>{% else %}<span class="badge gray">unrecognized</span>{% endif %}</td>
+<td>{{ r.raw_text }}</td><td>{{ 'yes' if r.handled else 'no' }}</td><td class="muted">{{ r.received_at }}</td></tr>{% endfor %}</table>
+</div>
+{% endblock %}

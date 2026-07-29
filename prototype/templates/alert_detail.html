@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Alert #{{ alert.id }} — {{ alert.template_code }} · zones {{ alert.zones }} · route
+<span class="badge {% if alert.route_status=='open' %}green{% elif alert.route_status=='closed' %}red{% else %}amber{% endif %}">{{ alert.route_status }}</span></h2>
+<div class="muted">source: {{ alert.source }} · {{ alert.created_at }} · severity {{ alert.severity }}{% if alert.route_note %} · note: {{ alert.route_note }}{% endif %}</div>
+<div class="grid g4" style="margin-top:10px">
+ <div><div class="kpi" id="ktotal">–</div><div class="muted">recipients</div></div>
+ <div><div class="kpi" id="ksent" style="color:var(--green)">–</div><div class="muted">delivered/sent</div></div>
+ <div><div class="kpi" id="kpend" style="color:var(--amber)">–</div><div class="muted">queued/retrying</div></div>
+ <div><div class="kpi" id="kunr" style="color:var(--red)">–</div><div class="muted">UNREACHED → door-knock</div></div>
+</div></div>
+<div class="grid g2">
+<div class="card"><h2>Live replies</h2><div id="replies" class="muted">waiting…</div></div>
+<div class="card"><h2>Unreached + no-reply lists (dispatch tanods here)</h2><div id="lists" class="muted">waiting…</div></div>
+</div>
+<div class="card"><h2>Per-household delivery</h2><div id="sends"></div></div>
+<script>
+var AID={{ alert.id }};
+function esc(s){return String(s==null?'':s).replace(/</g,'&lt;')}
+function flagchips(f){var o='';String(f||'').split(',').forEach(function(x){if(x)o+='<span class="flag">'+esc(x)+'</span>'});return o}
+function tick(){
+ fetch('/alerts/'+AID+'/data').then(function(r){return r.json()}).then(function(j){
+  document.getElementById('ktotal').textContent=j.counts.total;
+  document.getElementById('ksent').textContent=j.counts.sent;
+  document.getElementById('kpend').textContent=j.counts.pending;
+  document.getElementById('kunr').textContent=j.counts.unreached;
+  var rp=''; j.replies.forEach(function(r){
+   var cls=(r.keyword=='HELP'||r.keyword=='MEDICINE'||r.keyword=='STRANDED')?'red':(r.keyword=='SAFE'?'green':'gray');
+   rp+='<div style="margin:4px 0"><span class="badge '+cls+'">'+esc(r.keyword||'UNRECOGNIZED')+'</span> <b>'+esc(r.name||r.phone)+'</b> <span class="muted">z'+esc(r.zone||'?')+' · '+esc(r.received_at)+'</span>'+flagchips(r.flags)+'<br><span class="muted">“'+esc(r.raw_text)+'”</span></div>';
+  });
+  document.getElementById('replies').innerHTML=rp||'<span class="muted">none yet — replies land here live</span>';
+  var ls='<h3>Unreached (delivery failed after retries)</h3>';
+  if(j.unreached.length){j.unreached.forEach(function(s){ls+='<div><span class="badge red">unreached</span> '+esc(s.name||s.phone)+' — z'+esc(s.zone||'?')+flagchips(s.flags)+'</div>'})}else ls+='<span class="muted">none</span>';
+  ls+='<h3>Delivered but no reply yet</h3>';
+  if(j.no_reply.length){j.no_reply.forEach(function(s){ls+='<div><span class="badge amber">no reply</span> '+esc(s.name||s.phone)+' — z'+esc(s.zone||'?')+flagchips(s.flags)+'</div>'})}else ls+='<span class="muted">none</span>';
+  document.getElementById('lists').innerHTML=ls;
+  var tb='<table><tr><th>Household</th><th>Zone</th><th>Status</th><th>Attempts</th><th>Error</th></tr>';
+  j.sends.forEach(function(s){
+   var cls=s.status=='sent'?'green':(s.status=='unreached'?'red':'amber');
+   tb+='<tr><td>'+esc(s.name||s.phone)+flagchips(s.flags)+'</td><td>'+esc(s.zone||'')+'</td><td><span class="badge '+cls+'">'+esc(s.status)+'</span></td><td>'+s.attempts+'</td><td class="muted">'+esc(s.error)+'</td></tr>';
+  });
+  document.getElementById('sends').innerHTML=tb+'</table>';
+ });
+}
+tick(); setInterval(tick,3000);
+</script>
+{% endblock %}

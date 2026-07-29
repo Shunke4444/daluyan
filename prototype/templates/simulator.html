@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Phone simulator</h2>
+<p class="muted">Demo/drill tool: act as any registered resident — see the SMS they receive and text back. Posts to the same <code>/inbound</code> webhook an Android SIM gateway or engageSPARK would hit. Zero SMS spend.</p>
+<div class="grid g2">
+<div>
+<label>Resident</label>
+<select id="who">{% for r in rows %}<option value="{{ r.id }}" data-phone="{{ r.phone }}">{{ r.name }} — z{{ r.zone }} ({{ r.language }}) {{ r.phone }}</option>{% endfor %}</select>
+<div id="thread" style="margin-top:10px;min-height:220px;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fafcfd"></div>
+<div style="display:flex;gap:6px;margin-top:8px">
+ <input id="text" placeholder="type a reply… (SAFE, EVAC, HELP, MEDICINE, STRANDED — o kahit ano)">
+ <button class="btn" onclick="sendReply()">Send</button></div>
+<div style="margin-top:6px">
+ <button class="btn sec" onclick="quick('SAFE')">SAFE</button>
+ <button class="btn sec" onclick="quick('EVAC')">EVAC</button>
+ <button class="btn sec" onclick="quick('TULONG')">TULONG</button>
+ <button class="btn sec" onclick="quick('GAMOT')">GAMOT</button>
+ <button class="btn sec" onclick="quick('NAIPIT KAMI SA BUBONG')">free text</button></div>
+</div>
+<div>
+<h3>What this proves</h3>
+<ul class="muted">
+<li>Two-way loop end-to-end: alert out → keyword reply in → auto-reply (route status) → console triage.</li>
+<li>Tagalog/Cebuano aliases route correctly (TULONG→HELP, GAMOT→MEDICINE, LIGTAS→SAFE…).</li>
+<li>Unrecognized text is logged raw and shown as UNRECOGNIZED — never dropped.</li>
+<li>In production, replies arrive via the Android SIM gateway webhook (pilot) or engageSPARK toll-free number (graduation) — Semaphore is outbound-only.</li>
+</ul></div></div></div>
+<script>
+function esc(s){return String(s==null?'':s).replace(/</g,'&lt;')}
+function who(){var s=document.getElementById('who');return {id:s.value,phone:s.options[s.selectedIndex].dataset.phone}}
+function load(){
+ fetch('/simulator/'+who().id+'/thread').then(function(r){return r.json()}).then(function(j){
+  var el=document.getElementById('thread'); el.innerHTML='';
+  j.thread.forEach(function(m){
+   var d=document.createElement('div');
+   if(m.dir=='out'){d.className='msg out'; d.innerHTML=esc(m.body)+'<br><span class="muted">'+esc(m.status)+' · '+esc(m.created_at)+'</span>';}
+   else{d.className='msg in'; d.innerHTML=esc(m.raw_text)+'<br><span class="muted">'+esc(m.keyword||'unrecognized')+' · '+esc(m.received_at)+'</span>';}
+   el.appendChild(d);
+  });
+  el.scrollTop=el.scrollHeight;
+ });
+}
+function sendReply(){
+ var t=document.getElementById('text').value; if(!t)return;
+ var fd=new FormData(); fd.append('from',who().phone); fd.append('message',t);
+ fetch('/inbound',{method:'POST',body:fd}).then(function(){document.getElementById('text').value='';setTimeout(load,400)});
+}
+function quick(t){document.getElementById('text').value=t;sendReply()}
+document.getElementById('who').addEventListener('change',load);
+load(); setInterval(load,3000);
+</script>
+{% endblock %}

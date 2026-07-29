@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daluyan — {{ brgy }}</title>
+<style>
+:root{--acc:#1f4e5f;--bg:#f5f7f9;--card:#fff;--line:#dde5ea;--red:#a33333;--green:#1e7b3c;--amber:#9a6a00}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,Arial;background:var(--bg);color:#222}
+header{background:var(--acc);color:#fff;padding:10px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+header b{font-size:16px}header a{color:#d9e7ee;text-decoration:none;padding:4px 8px;border-radius:6px}
+header a:hover,header a.on{background:rgba(255,255,255,.15);color:#fff}
+main{max-width:1080px;margin:18px auto;padding:0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+h2{margin:4px 0 10px;font-size:16px;color:var(--acc)}h3{margin:10px 0 6px;font-size:13.5px;color:#3a6a85}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#eef4f7;color:#274b5a;font-weight:600}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;background:#e8eef2;color:#333}
+.badge.red{background:#fbe9e9;color:var(--red)}.badge.green{background:#e5f2e5;color:var(--green)}
+.badge.amber{background:#fff3d9;color:var(--amber)}.badge.gray{background:#eee;color:#555}
+.btn{display:inline-block;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13.5px;text-decoration:none}
+.btn.sec{background:#e8eef2;color:var(--acc)}.btn.red{background:var(--red)}
+input,select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font:inherit;background:#fff}
+label{font-size:12px;color:#555;display:block;margin:8px 0 3px}
+.grid{display:grid;gap:10px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.kpi{font-size:22px;font-weight:700;color:var(--acc)}.muted{color:#777;font-size:12px}
+.msg{border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:6px 0;max-width:85%;font-size:13px;white-space:pre-wrap}
+.msg.out{background:#eef4f7}.msg.in{background:#e5f2e5;margin-left:auto}
+.flag{background:#fff3d9;color:#9a6a00;border-radius:8px;padding:0 6px;font-size:11px;margin-left:4px}
+@media(max-width:760px){.g2,.g3,.g4{grid-template-columns:1fr}}
+</style></head><body>
+<header><b>DALUYAN</b><span class="muted" style="color:#bcd">{{ brgy }} · Phase 1 prototype</span>
+<a href="/">Dashboard</a><a href="/send">Send alert</a><a href="/residents">Registry</a>
+<a href="/templates">Templates</a><a href="/simulator">Phone simulator</a><a href="/audit">Audit log</a></header>
+<main>{% block body %}{% endblock %}</main></body></html>

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Alert templates (versioned)</h2>
+<p class="muted">Seed copy is DRAFT — requires native-speaker validation and captain approval before live use. The linter enforces: no links, no phone numbers, no “all clear” copy, and mandatory {source} + {asof} citation (NTC MO 005-04-2023 + trust guardrails).</p>
+<table><tr><th>Code</th><th>Lang</th><th>v</th><th>Body</th><th>Approval</th><th>Linter</th></tr>
+{% for t in rows %}<tr><td><b>{{ t.row.code }}</b></td><td>{{ t.row.language }}</td><td>{{ t.row.version }}</td>
+<td style="white-space:pre-wrap">{{ t.row.body }}</td>
+<td class="muted">{{ t.row.approved_by }}</td>
+<td>{% if t.errors %}<span class="badge red">BLOCKED</span> {{ t.errors|join('; ') }}{% elif t.warnings %}<span class="badge amber">warn</span> {{ t.warnings|join('; ') }}{% else %}<span class="badge green">pass</span>{% endif %}</td>
+</tr>{% endfor %}</table></div>
+{% endblock %}

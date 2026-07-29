@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Compose alert wave</h2>
+<form id="f" class="grid g3" method="post" action="/send">
+<div><label>Template</label><select name="template_code">{% for c in codes %}<option>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Zones (comma-sep)</label><input name="zones" value="{{ zones|join(',') }}"></div>
+<div><label>Severity</label><select name="severity"><option value="normal">normal (standard queue)</option><option value="critical">critical (priority route, 2 credits)</option></select></div>
+<div><label>Evac center</label><input name="center" value="Barangay Hall"></div>
+<div><label>Route status</label><select name="route_status"><option value="open">Open</option><option value="affected">Open but road affected</option><option value="closed">Closed</option></select></div>
+<div><label>Route note (optional)</label><input name="route_note" placeholder="e.g. use Riverside–Chapel path"></div>
+<div><label>Source</label><input name="source" value="PAGASA via MDRRMO"></div>
+<div><label>&nbsp;</label><button type="button" class="btn sec" onclick="preview()">Preview</button></div>
+<div><label>&nbsp;</label><button class="btn" id="sendbtn">SEND WAVE</button></div>
+</form></div>
+<div class="card" id="pv" style="display:none"><h2>Preview (exact SMS per language)</h2><div id="pvbody"></div></div>
+<script>
+function preview(){
+ var fd=new FormData(document.getElementById('f'));
+ fetch('/preview',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(j){
+  var el=document.getElementById('pvbody'); el.innerHTML='';
+  j.previews.forEach(function(p){
+   var d=document.createElement('div');
+   var badge=p.errors.length?'<span class="badge red">BLOCKED: '+p.errors.join('; ')+'</span>':
+    (p.warnings.length?'<span class="badge amber">'+p.warnings.join('; ')+'</span>':'<span class="badge green">linter pass</span>');
+   d.innerHTML='<h3>'+p.language+' — '+p.recipients+' recipients · '+p.chars+' chars · '+p.segments+' segment(s) '+badge+'</h3>'+
+    '<div class="msg out">'+p.body+'</div>';
+   el.appendChild(d);
+  });
+  document.getElementById('pv').style.display='block';
+  document.getElementById('sendbtn').disabled=j.blocked;
+ });
+}
+</script>
+{% endblock %}

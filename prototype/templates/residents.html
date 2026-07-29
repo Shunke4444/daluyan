@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>Resident registry</h2>
+<p class="muted">Vulnerability flags are operator-visible only and are never used for automated routing (guardrail). Consent is recorded at enrollment (Data Privacy Act — barangay is the personal-information controller).</p>
+<table><tr><th>Name</th><th>Phone</th><th>Zone</th><th>Lang</th><th>Flags</th><th>Consent</th></tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.phone }}</td><td>{{ r.zone }}</td><td>{{ r.language }}</td>
+<td>{% for f in (r.flags or '').split(',') if f %}<span class="flag">{{ f }}</span>{% endfor %}</td>
+<td>{% if r.consent_at %}<span class="badge green">{{ r.consent_at[:10] }}</span>{% else %}<span class="badge red">none</span>{% endif %}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Enroll household</h2>
+<form method="post" action="/residents" class="grid g3">
+<div><label>Contact name</label><input name="name" required></div>
+<div><label>Phone (09xx…)</label><input name="phone" required pattern="09[0-9]{9}"></div>
+<div><label>Zone</label><input name="zone" required value="1"></div>
+<div><label>Language</label><select name="language"><option value="fil">Filipino</option><option value="ceb">Cebuano</option></select></div>
+<div><label>Flags (comma: elderly,pwd,pregnant,infant,chronic_illness)</label><input name="flags" placeholder=""></div>
+<div><label>&nbsp;</label><label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" name="consent" value="1" style="width:auto"> Consent read &amp; given</label></div>
+<div><button class="btn">Enroll</button></div></form></div>
+{% endblock %}
