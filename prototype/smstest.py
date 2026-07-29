@@ -8,7 +8,9 @@ so a green result here proves the exact path a real alert will take.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from daluyan import gateway as gw
+from daluyan import gateway as gw, env
+
+env.load()
 
 DEFAULT_MSG = ("DALUYAN TEST: Ito ay pagsubok ng sistema ng babala ng barangay. "
                "Walang aksyon na kailangan. Mula sa Daluyan pilot.")
@@ -16,6 +18,7 @@ DEFAULT_MSG = ("DALUYAN TEST: Ito ay pagsubok ng sistema ng babala ng barangay. 
 def main():
     if len(sys.argv) < 2:
         print("usage: python smstest.py 09XXXXXXXXX [\"message\"]")
+        print("       (reads .env for SMS_PROVIDER + keys; env vars override)")
         return 2
     phone = sys.argv[1].strip()
     msg = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_MSG

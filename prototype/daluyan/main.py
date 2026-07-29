@@ -8,7 +8,9 @@ pure-Python (installs anywhere, no compilers) - porting to FastAPI later is mech
 import os, csv, io, json
 import tornado.ioloop, tornado.web
 from jinja2 import Environment, FileSystemLoader
-from . import db, keywords, linter, retry, gateway as gw, api
+from . import db, keywords, linter, retry, gateway as gw, api, env
+
+env.load()
 
 BRGY = os.environ.get("DALUYAN_BRGY", "Brgy Mahogany, Marilao")
 PORT = int(os.environ.get("PORT", "8787"))

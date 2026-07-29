@@ -8,13 +8,65 @@ outbox → full audit log (CSV export).
 **Gateway is stubbed by default (MOCK mode)** — you can run a full drill end-to-end with
 zero SMS spend using the built-in Phone Simulator.
 
+## Setup (terminal only)
+
+```bash
+cd prototype
+python -m venv .venv
+.venv\Scripts\activate          # Windows;  source .venv/bin/activate on mac/linux
+pip install -r requirements.txt
+cp .env.example .env             # then edit .env with your provider + API key
+```
+
+`.env` is read automatically at startup (real environment variables override it, so
+`SMS_PROVIDER=mock python -m daluyan.main` works for a one-off).
+
+## Send ONE test SMS to your own number
+
+```bash
+python smstest.py 09171234567
+python smstest.py 09171234567 "custom message"
+```
+
+Bypasses the registry, zones, retry queue and web console entirely — one message straight
+through the configured gateway. Prints provider, credit balance, segment count, and the
+result. Guards: rejects malformed numbers, warns on zero balance, rewrites messages starting
+with "TEST" (PH networks drop those silently).
+
+```
+Provider   : semaphore
+Balance    : 200 credits
+Recipient  : 09171234567
+Length     : 114 chars (1 SMS segment(s))
+Sending...
+RESULT     : ACCEPTED by semaphore
+```
+
+## Run the server
+
+```bash
+python -m daluyan.main                    # uses .env
+# one-off overrides:
+SMS_PROVIDER=iprog python -m daluyan.main         # mac/linux
+set SMS_PROVIDER=iprog && python -m daluyan.main  # Windows cmd
+$env:SMS_PROVIDER="iprog"; python -m daluyan.main # PowerShell
+```
+
+Then open http://127.0.0.1:8787 (console UI at `/ui/`, classic at `/legacy`).
+
+## Build the web console (one time)
+
+```bash
+cd frontend && npm install && npm run build && cd ..
+```
+
 ## New console UI (React + shadcn)
 
 The modern operator console lives in `frontend/` (Vite + React + TypeScript + Tailwind +
 shadcn/ui components). One-time build on your machine (needs Node 18+):
 
-1. Double-click `build-ui.bat` (runs `npm install` + `npm run build`).
-2. Start the server with any `run*.bat` — the new UI is served at **http://127.0.0.1:8787/ui/**
+1. Run `cd frontend && npm install && npm run build`.
+2. Start the server with `python -m daluyan.main` — the new UI is served at **http://127.0.0.1:8787/ui/**
    (the root URL redirects there once a build exists; the old console stays at `/legacy`).
 
 Design: hybrid of task-first flows (big actions, 4-step send wizard, one question per screen)
@@ -24,9 +76,6 @@ over the home screen while an alert is active. EN/FIL label toggle in the header
 Dev mode: `cd frontend && npm run dev` → http://localhost:5173/ui/ (proxies API to :8787).
 
 ## Quick start
-
-Windows: double-click `run.bat`  (needs Python 3.10+ on PATH)
-Mac/Linux: `./run.sh`
 
 Then open http://127.0.0.1:8787
 
@@ -60,7 +109,7 @@ Goal: prove the dashboard really sends and receives SMS, then run a 30-household
 1. Android phone + SIM with load/unli-text promo.
 2. Play Store → **"Traccar SMS Gateway"** (`org.traccar.gateway`, publisher Tananaev Solutions —
    the open-source Traccar project, running since 2009). No sideloading.
-3. Open the app, enable the gateway, copy the **cloud token** → double-click `run-live.bat`,
+3. Open the app, enable the gateway, copy the **cloud token** → double-click `SMS_PROVIDER=traccar`,
    paste the token. Done — the dashboard now sends real SMS through your SIM.
 4. Limitation: send-only. Replies won't reach the dashboard (use the Phone simulator for the
    reply flow, or Option B).
@@ -83,10 +132,7 @@ this proves the loop, it does not replace the aggregator bake-off for production
 
 Before touching the registry, prove the pipe with a single SMS to your own phone:
 
-- Double-click **`sms-test.bat`** — asks for API key, sender name, and your number, then
-  sends ONE message and prints provider, credit balance, segment count, and the result.
-- Or from the prototype folder: `set SMS_PROVIDER=semaphore` + `set SEMAPHORE_API_KEY=...`
-  then `python smstest.py 09171234567 ["custom message"]`
+- `python smstest.py 09171234567` (see the section above).
 
 It bypasses the registry, zones, retry queue and console entirely — so a green ACCEPTED
 means the gateway path a real alert uses is working. Guards built in: rejects malformed
