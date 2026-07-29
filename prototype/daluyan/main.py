@@ -8,7 +8,7 @@ pure-Python (installs anywhere, no compilers) - porting to FastAPI later is mech
 import os, csv, io, json
 import tornado.ioloop, tornado.web
 from jinja2 import Environment, FileSystemLoader
-from . import db, keywords, linter, retry, gateway as gw
+from . import db, keywords, linter, retry, gateway as gw, api
 
 BRGY = os.environ.get("DALUYAN_BRGY", "Brgy Mahogany, Marilao")
 PORT = int(os.environ.get("PORT", "8787"))
@@ -17,6 +17,18 @@ env = Environment(loader=FileSystemLoader(os.path.join(HERE, "..", "templates"))
 
 C = None
 GATEWAY = None
+_BAL = {"t": 0.0, "v": None}
+
+def gateway_balance():
+    """60s-cached credit balance (Semaphore's account endpoint is limited to 2 calls/min)."""
+    import time
+    if time.time() - _BAL["t"] > 60:
+        try:
+            _BAL["v"] = GATEWAY.balance()
+        except Exception:
+            _BAL["v"] = None
+        _BAL["t"] = time.time()
+    return _BAL["v"]
 
 ROUTE_TEXT = {
     "open":     {"fil": "BUKAS ang pangunahing daan", "ceb": "ABLI ang dakong dalan"},
@@ -71,7 +83,7 @@ class Dashboard(Base):
             LEFT JOIN residents res ON res.id=r.resident_id
             WHERE r.keyword IN ('HELP','MEDICINE','STRANDED') AND r.handled=0
             ORDER BY r.id DESC LIMIT 20""").fetchall()
-        self.render_tpl("dashboard.html", s=s, alerts=alerts, triage=triage, gateway=GATEWAY.name)
+        self.render_tpl("dashboard.html", s=s, alerts=alerts, triage=triage, gateway=GATEWAY.name, balance=gateway_balance())
 
 class Residents(Base):
     def get(self):
@@ -236,15 +248,37 @@ class AuditCsv(Base):
         self.set_header("Content-Disposition", "attachment; filename=daluyan_audit.csv")
         self.finish(buf.getvalue())
 
+DIST = os.path.join(HERE, "..", "frontend", "dist")
+
+class SmartRoot(Dashboard):
+    """Serve the React console when a build exists; fall back to the legacy dashboard."""
+    def get(self):
+        if os.path.isfile(os.path.join(DIST, "index.html")):
+            self.redirect("/ui/")
+        else:
+            super().get()
+
 def make_app():
-    return tornado.web.Application([
+    handlers = [
         (r"/", Dashboard), (r"/residents", Residents), (r"/templates", TemplatesPage),
         (r"/send", SendPage), (r"/preview", Preview),
         (r"/alerts/([0-9]+)", AlertPage), (r"/alerts/([0-9]+)/data", AlertData),
         (r"/replies/([0-9]+)/handle", HandleReply), (r"/inbound", Inbound),
         (r"/simulator", Simulator), (r"/simulator/([0-9]+)/thread", SimThread),
-        (r"/audit", Audit), (r"/audit\.csv", AuditCsv),
-    ])
+        (r"/audit", Audit), (r"/audit\.csv", AuditCsv), (r"/legacy", Dashboard),
+    ]
+    api.register(handlers, {
+        "C": lambda: C,
+        "fill": fill,
+        "queue_send": queue_send,
+        "gateway_name": lambda: GATEWAY.name,
+        "gateway_balance": gateway_balance,
+    })
+    handlers.insert(0, (r"/", SmartRoot))
+    if os.path.isdir(DIST):
+        handlers.append((r"/ui/(.*)", tornado.web.StaticFileHandler,
+                         {"path": DIST, "default_filename": "index.html"}))
+    return tornado.web.Application(handlers)
 
 def main():
     global C, GATEWAY

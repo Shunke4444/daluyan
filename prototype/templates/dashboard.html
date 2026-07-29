@@ -3,7 +3,7 @@
  <div class="card"><div class="kpi">{{ s.residents }}</div><div class="muted">registered households</div></div>
  <div class="card"><div class="kpi">{{ s.consented }}</div><div class="muted">with recorded consent</div></div>
  <div class="card"><div class="kpi">{{ s.zones|length }}</div><div class="muted">zones covered</div></div>
- <div class="card"><div class="kpi">{{ gateway|upper }}</div><div class="muted">SMS gateway mode</div></div>
+ <div class="card"><div class="kpi" style="font-size:16px">{{ gateway|upper }}</div><div class="muted">SMS gateway{% if balance %} · {{ balance }}{% endif %}</div></div>
 </div>
 <div class="card"><h2>⚠ Triage queue — HELP / MEDICINE / STRANDED (unhandled)</h2>
 {% if triage %}<table><tr><th>When</th><th>Resident</th><th>Zone</th><th>Keyword</th><th>Raw</th><th>Flags</th><th></th></tr>

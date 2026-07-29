@@ -1,0 +1,141 @@
+"""JSON API for the React console (shadcn UI). Mounted under /api/*.
+Legacy server-rendered pages remain available under their original routes."""
+import json, os, datetime
+import tornado.web
+from . import db, linter
+
+def register(app_handlers, ctx):
+    """ctx provides: C (db conn), fill, route_text, GATEWAY getter, gateway_balance, queue_send."""
+    class Base(tornado.web.RequestHandler):
+        def set_default_headers(self):
+            self.set_header("Access-Control-Allow-Origin", "*")
+            self.set_header("Access-Control-Allow-Headers", "Content-Type")
+            self.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        def options(self, *a):
+            self.set_status(204); self.finish()
+        def json(self, obj, status=200):
+            self.set_status(status)
+            self.set_header("Content-Type", "application/json")
+            self.finish(json.dumps(obj, default=str))
+        def body(self):
+            try:
+                return json.loads(self.request.body or b"{}")
+            except Exception:
+                return {}
+
+    C = ctx["C"]
+
+    def alert_counts(alert_id):
+        row = C().execute("""SELECT
+            SUM(CASE WHEN kind='alert' THEN 1 ELSE 0 END) total,
+            SUM(CASE WHEN kind='alert' AND status='sent' THEN 1 ELSE 0 END) sent,
+            SUM(CASE WHEN kind='alert' AND status IN ('queued','failed') THEN 1 ELSE 0 END) pending,
+            SUM(CASE WHEN kind='alert' AND status='unreached' THEN 1 ELSE 0 END) unreached
+            FROM sends WHERE alert_id=?""", (alert_id,)).fetchone()
+        return {k: row[k] or 0 for k in ("total", "sent", "pending", "unreached")}
+
+    class Summary(Base):
+        def get(self):
+            c = C()
+            zones = [dict(r) for r in c.execute("SELECT zone, COUNT(*) c FROM residents GROUP BY zone ORDER BY zone")]
+            latest = c.execute("SELECT * FROM alerts ORDER BY id DESC LIMIT 1").fetchone()
+            active = None
+            if latest:
+                age_h = (datetime.datetime.now() - datetime.datetime.strptime(latest["created_at"], "%Y-%m-%d %H:%M:%S")).total_seconds() / 3600
+                if age_h < 12:
+                    active = dict(latest) | {"counts": alert_counts(latest["id"]),
+                        "replies": c.execute("SELECT COUNT(*) c FROM replies WHERE alert_id=?", (latest["id"],)).fetchone()["c"]}
+            self.json({
+                "residents": c.execute("SELECT COUNT(*) c FROM residents").fetchone()["c"],
+                "consented": c.execute("SELECT COUNT(*) c FROM residents WHERE consent_at IS NOT NULL").fetchone()["c"],
+                "zones": zones,
+                "triage": c.execute("SELECT COUNT(*) c FROM replies WHERE keyword IN ('HELP','MEDICINE','STRANDED') AND handled=0").fetchone()["c"],
+                "gateway": ctx["gateway_name"](),
+                "balance": ctx["gateway_balance"](),
+                "active_alert": active,
+            })
+
+    class Residents(Base):
+        def get(self):
+            self.json([dict(r) for r in C().execute("SELECT * FROM residents ORDER BY zone, name")])
+        def post(self):
+            b = self.body()
+            if not b.get("consent"):
+                self.json({"error": "Consent is required (recorded at enrollment, Data Privacy Act)."}, 400); return
+            try:
+                C().execute("INSERT INTO residents(name,phone,zone,language,flags,consent_at,created_at) VALUES(?,?,?,?,?,?,?)",
+                            (b.get("name","").strip(), b.get("phone","").strip(), str(b.get("zone","")).strip(),
+                             b.get("language","fil"), ",".join(b.get("flags", [])) if isinstance(b.get("flags"), list) else b.get("flags",""),
+                             db.now(), db.now()))
+                C().commit()
+            except Exception as e:
+                self.json({"error": str(e)}, 400); return
+            self.json({"ok": True})
+
+    class Templates(Base):
+        def get(self):
+            out = []
+            for r in C().execute("SELECT * FROM alert_templates ORDER BY code, language"):
+                errs, warns = linter.lint(r["body"])
+                out.append(dict(r) | {"lint_errors": errs, "lint_warnings": warns})
+            self.json(out)
+
+    class Alerts(Base):
+        def get(self):
+            out = []
+            for a in C().execute("SELECT * FROM alerts ORDER BY id DESC LIMIT 30"):
+                out.append(dict(a) | {"counts": alert_counts(a["id"])})
+            self.json(out)
+
+    class Preview(Base):
+        def post(self):
+            b = self.body()
+            stub = {"zones": b.get("zones",""), "center": b.get("center",""), "route_status": b.get("route_status","open"),
+                    "route_note": b.get("route_note",""), "source": b.get("source",""), "created_at": db.now()}
+            out, blocked = [], False
+            for t in C().execute("SELECT * FROM alert_templates WHERE code=? ORDER BY language", (b.get("template_code",""),)):
+                body = ctx["fill"](t["body"], stub, t["language"])
+                errs, warns = linter.lint(body, filled=True)
+                n = C().execute("SELECT COUNT(*) c FROM residents WHERE language=? AND (','||?||',') LIKE ('%,'||zone||',%') AND consent_at IS NOT NULL",
+                                (t["language"], stub["zones"])).fetchone()["c"]
+                blocked = blocked or bool(errs)
+                out.append({"language": t["language"], "body": body, "chars": len(body),
+                            "segments": 1 + (len(body) - 1) // 153 if len(body) > 160 else 1,
+                            "recipients": n, "errors": errs, "warnings": warns})
+            self.json({"previews": out, "blocked": blocked})
+
+    class Send(Base):
+        def post(self):
+            b = self.body()
+            code = b.get("template_code","")
+            stub = {"zones": b.get("zones",""), "center": b.get("center",""), "route_status": b.get("route_status","open"),
+                    "route_note": b.get("route_note",""), "source": b.get("source",""), "created_at": db.now()}
+            c = C()
+            for t in c.execute("SELECT * FROM alert_templates WHERE code=?", (code,)):
+                errs, _ = linter.lint(ctx["fill"](t["body"], stub, t["language"]), filled=True)
+                if errs:
+                    self.json({"error": "Blocked by linter: " + "; ".join(errs)}, 400); return
+            c.execute("INSERT INTO alerts(template_code,severity,zones,center,route_status,route_note,source,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                      (code, b.get("severity","normal"), stub["zones"], stub["center"], stub["route_status"], stub["route_note"], stub["source"], db.now()))
+            alert_id = c.execute("SELECT last_insert_rowid() i").fetchone()["i"]; c.commit()
+            alert = c.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone()
+            zone_list = [z.strip() for z in stub["zones"].split(",") if z.strip()]
+            q = ",".join("?" * len(zone_list))
+            for r in c.execute("SELECT * FROM residents WHERE zone IN (%s) AND consent_at IS NOT NULL" % q, zone_list).fetchall():
+                t = c.execute("SELECT * FROM alert_templates WHERE code=? AND language=? ORDER BY version DESC LIMIT 1", (code, r["language"])).fetchone() or \
+                    c.execute("SELECT * FROM alert_templates WHERE code=? AND language='fil' ORDER BY version DESC LIMIT 1", (code,)).fetchone()
+                ctx["queue_send"](alert_id, r, ctx["fill"](t["body"], alert, r["language"]))
+            self.json({"ok": True, "alert_id": alert_id})
+
+    class Audit(Base):
+        def get(self):
+            c = C()
+            self.json({
+                "sends": [dict(r) for r in c.execute("SELECT s.*, res.name FROM sends s LEFT JOIN residents res ON res.id=s.resident_id ORDER BY s.id DESC LIMIT 200")],
+                "replies": [dict(r) for r in c.execute("SELECT r.*, res.name FROM replies r LEFT JOIN residents res ON res.id=r.resident_id ORDER BY r.id DESC LIMIT 200")],
+            })
+
+    app_handlers.extend([
+        (r"/api/summary", Summary), (r"/api/residents", Residents), (r"/api/templates", Templates),
+        (r"/api/alerts", Alerts), (r"/api/preview", Preview), (r"/api/send", Send), (r"/api/audit", Audit),
+    ])

@@ -1,8 +1,10 @@
 __pycache__/
 *.pyc
+.venv/
+venv/
 *.db
 *.db-wal
 *.db-shm
+node_modules/
+prototype/frontend/dist/
 .env
-venv/
-.venv/
