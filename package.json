@@ -1,0 +1,17 @@
+{
+  "name": "daluyan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daluyan barangay SMS alert system — root dev harness. Python Tornado backend + React/Vite frontend, one command.",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd prototype && set DEMO_FAST=1&& .venv\\Scripts\\python.exe -m daluyan.main",
+    "dev:web": "cd prototype/frontend && npm run dev",
+    "build": "cd prototype/frontend && npm run build",
+    "start": "cd prototype && .venv\\Scripts\\python.exe -m daluyan.main",
+    "setup": "npm install && npm --prefix prototype/frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

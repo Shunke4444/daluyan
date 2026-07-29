@@ -79,6 +79,20 @@ fine for validation; the registered "BRGY/DALUYAN" sender name comes with the pa
 Limits: consumer SIM = keep it ≤30–50 recipients and don't blast repeatedly (telco spam heuristics);
 this proves the loop, it does not replace the aggregator bake-off for production waves.
 
+## One-number smoke test (do this first with any paid provider)
+
+Before touching the registry, prove the pipe with a single SMS to your own phone:
+
+- Double-click **`sms-test.bat`** — asks for API key, sender name, and your number, then
+  sends ONE message and prints provider, credit balance, segment count, and the result.
+- Or from the prototype folder: `set SMS_PROVIDER=semaphore` + `set SEMAPHORE_API_KEY=...`
+  then `python smstest.py 09171234567 ["custom message"]`
+
+It bypasses the registry, zones, retry queue and console entirely — so a green ACCEPTED
+means the gateway path a real alert uses is working. Guards built in: rejects malformed
+numbers, warns on zero balance, and rewrites messages starting with "TEST" (PH networks
+drop those silently).
+
 ## Going live (pilot checklist)
 
 1. **Outbound** — three real providers are wired in (pick with `SMS_PROVIDER`, add a
