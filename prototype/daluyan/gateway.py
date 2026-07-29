@@ -18,6 +18,16 @@ import os, hashlib
 
 TIMEOUT = 20
 
+def _require(var):
+    """Fetch a required credential, treating blank/placeholder values as missing."""
+    val = (os.environ.get(var) or "").strip()
+    if not val or val.lower() in ("changeme", "your_key_here", "none"):
+        raise SystemExit(
+            "SMS provider needs %s but it is empty.\n"
+            "  Edit prototype/.env so the line reads e.g.  %s=abc123def456\n"
+            "  (no quotes, no spaces around '=', and no trailing comment)" % (var, var))
+    return val
+
 class MockGateway:
     name = "mock"
     def send(self, phone, body, priority=False, attempt=0):
@@ -33,8 +43,8 @@ class SemaphoreGateway:
     name = "semaphore"
     BASE = "https://api.semaphore.co/api/v4"
     def __init__(self):
-        self.key = os.environ["SEMAPHORE_API_KEY"]
-        self.sender = os.environ.get("SEMAPHORE_SENDER", "")
+        self.key = _require("SEMAPHORE_API_KEY")
+        self.sender = os.environ.get("SEMAPHORE_SENDER", "").strip()
         self.last = None          # parsed API response of the most recent send
     def send(self, phone, body, priority=False, attempt=0):
         import requests
@@ -46,11 +56,16 @@ class SemaphoreGateway:
             if r.status_code == 200:
                 try:
                     j = r.json()
-                    self.last = j[0] if isinstance(j, list) and j else j
                 except Exception:
                     self.last = None
+                    return False, ("semaphore returned HTTP 200 but the body is not JSON - "
+                                   "usually an invalid or empty API key. Body: %s" % r.text[:160])
+                self.last = j[0] if isinstance(j, list) and j else j
+                if not (isinstance(self.last, dict) and self.last.get("message_id")):
+                    return False, ("semaphore accepted the request but returned no message_id "
+                                   "(check API key / sender name). Body: %s" % str(j)[:160])
                 return True, ""
-            return False, "semaphore HTTP %s: %s" % (r.status_code, r.text[:120])
+            return False, "semaphore HTTP %s: %s" % (r.status_code, r.text[:160])
         except Exception as e:
             return False, "semaphore %s: %s" % (type(e).__name__, e)
     def balance(self):
@@ -73,8 +88,8 @@ class UniSMSGateway:
     name = "unisms"
     BASE = "https://unismsapi.com/api"
     def __init__(self):
-        self.key = os.environ["UNISMS_API_KEY"]
-        self.sender = os.environ["UNISMS_SENDER"]   # sender_id is REQUIRED on every send
+        self.key = _require("UNISMS_API_KEY")
+        self.sender = _require("UNISMS_SENDER")   # sender_id is REQUIRED on every send
     def send(self, phone, body, priority=False, attempt=0):
         import requests
         payload = {"content": body, "sender_id": self.sender, "recipient": phone,
@@ -104,7 +119,7 @@ class PhilSMSGateway:
     name = "philsms"
     BASE = "https://app.philsms.com/api/v3"
     def __init__(self):
-        self.token = os.environ["PHILSMS_API_TOKEN"]
+        self.token = _require("PHILSMS_API_TOKEN")
         self.sender = os.environ.get("PHILSMS_SENDER", "PhilSMS")
     def _headers(self):
         return {"Authorization": "Bearer %s" % self.token, "Accept": "application/json",
@@ -197,7 +212,7 @@ class TraccarGateway:
     name = "traccar"
     def __init__(self):
         self.url = os.environ.get("TRACCAR_URL", "https://www.traccar.org/sms/")
-        self.token = os.environ["TRACCAR_TOKEN"]
+        self.token = _require("TRACCAR_TOKEN")
     def send(self, phone, body, priority=False, attempt=0):
         import requests
         to = "+63" + phone[1:] if phone.startswith("09") else phone
@@ -223,7 +238,7 @@ class IprogGateway:
     name = "iprog"
     BASE = "https://www.iprogsms.com/api/v1"
     def __init__(self):
-        self.token = os.environ["IPROG_API_TOKEN"]
+        self.token = _require("IPROG_API_TOKEN")
     def send(self, phone, body, priority=False, attempt=0):
         import requests
         payload = {"api_token": self.token, "phone_number": phone, "message": body}

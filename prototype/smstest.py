@@ -34,7 +34,7 @@ def main():
     try:
         g = gw.get_gateway()
     except SystemExit as e:
-        print("! %s" % e); return 1
+        print("CONFIG ERROR\n%s" % e); return 1
 
     print("Provider   : %s" % g.name)
     bal = None
