@@ -8,6 +8,7 @@ import Registry from "@/pages/Registry";
 import TemplatesPage from "@/pages/TemplatesPage";
 import AuditPage from "@/pages/AuditPage";
 import SimulatorPage from "@/pages/SimulatorPage";
+import Triage from "@/pages/Triage";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/send" element={<SendWizard />} />
             <Route path="/event/:id" element={<EventBoard />} />
+            <Route path="/triage" element={<Triage />} />
             <Route path="/registry" element={<Registry />} />
             <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/audit" element={<AuditPage />} />

@@ -24,10 +24,19 @@ const dict = {
     name: "Contact name", phone: "Phone (09…)", zone: "Zone", language: "Language",
     flags: "Vulnerability flags", consent: "Consent read and given", enrollBtn: "Register household",
     consentNote: "Flags are visible to operators only and never automate decisions. Consent is recorded (Data Privacy Act).",
-    lastDrill: "Last drill", needsAttention: "needs attention", unhandledReplies: "unhandled replies",
+    lastDrill: "Last drill", needsAttention: "Needs attention", unhandledReplies: "unhandled replies",
     sendTest: "Act as this resident and reply:", exportCsv: "Export CSV",
     templatesNote: "Seed copy is DRAFT — needs native-speaker validation and captain approval before live use.",
     zonesHint: "Comma-separated, e.g. 1,3", registered: "registered", consented: "with consent",
+    readiness: "Readiness", consentCoverage: "Consent coverage", templatesStatus: "Alert templates",
+    approved: "Approved", draftStatus: "Draft — validate with native speakers",
+    gatewayStatus: "SMS gateway", simulationMode: "Simulation mode — no real SMS",
+    lastAlertDelivery: "Last wave delivery", noAlertsYet: "No drills yet — run one from Send alert",
+    zoneCoverage: "Zone coverage", recentAlerts: "Recent alerts", openBoard: "Open board",
+    triageBanner: "unhandled distress replies — open the triage queue",
+    triageTitle: "Triage queue", triageSub: "HELP, MEDICINE, STRANDED, and unrecognized replies that no one has handled yet. Dispatch a tanod, then mark handled.",
+    triageEmpty: "All clear — every distress reply has been handled.",
+    unrecognized: "unrecognized — read the raw text",
   },
   fil: {
     ready: "Handa", households: "sambahayan", gatewayOk: "OK ang gateway",
@@ -52,10 +61,19 @@ const dict = {
     name: "Pangalan ng kontak", phone: "Numero (09…)", zone: "Zone", language: "Wika",
     flags: "Mga flag ng kahinaan", consent: "Nabasa at pumayag sa consent", enrollBtn: "Irehistro",
     consentNote: "Ang mga flag ay para sa operator lang at hindi awtomatikong ginagamit. Naitatala ang consent (Data Privacy Act).",
-    lastDrill: "Huling drill", needsAttention: "kailangan ng aksyon", unhandledReplies: "sagot na di pa natutugunan",
+    lastDrill: "Huling drill", needsAttention: "Kailangan ng aksyon", unhandledReplies: "sagot na di pa natutugunan",
     sendTest: "Sumagot bilang residenteng ito:", exportCsv: "I-export ang CSV",
     templatesNote: "DRAFT pa ang mga template — kailangan ng native-speaker validation at pirma ng kapitan bago gamitin.",
     zonesHint: "Hiwalay ng kuwit, hal. 1,3", registered: "nakarehistro", consented: "may consent",
+    readiness: "Kahandaan", consentCoverage: "Saklaw ng consent", templatesStatus: "Mga alert template",
+    approved: "Aprubado", draftStatus: "Draft — ipa-validate sa native speakers",
+    gatewayStatus: "SMS gateway", simulationMode: "Simulation mode — walang totoong SMS",
+    lastAlertDelivery: "Huling padala", noAlertsYet: "Wala pang drill — magsimula sa Magpadala ng babala",
+    zoneCoverage: "Saklaw kada zone", recentAlerts: "Mga nakaraang babala", openBoard: "Buksan",
+    triageBanner: "sagot na nangangailangan ng aksyon — buksan ang triage",
+    triageTitle: "Triage queue", triageSub: "HELP, GAMOT, STRANDED, at mga di-makilalang sagot na wala pang tumutugon. Magpadala ng tanod, tapos markahan.",
+    triageEmpty: "Malinis — natugunan na ang lahat ng distress reply.",
+    unrecognized: "di makilala — basahin ang mensahe",
   },
 };
 
@@ -69,7 +87,7 @@ const Ctx = createContext<{ lang: Lang; t: (k: Key) => string; setLang: (l: Lang
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(() => (localStorage.getItem("daluyan_lang") as Lang) || "fil");
   const setLang = (l: Lang) => { localStorage.setItem("daluyan_lang", l); setLangState(l); };
-  const t = (k: Key) => dict[lang][k] || dict.en[k] || (k as string);
+  const t = (k: Key) => (dict[lang] as any)[k] || dict.en[k] || (k as string);
   return <Ctx.Provider value={{ lang, t, setLang }}>{children}</Ctx.Provider>;
 }
 
