@@ -15,13 +15,50 @@ env.load()
 DEFAULT_MSG = ("DALUYAN TEST: Ito ay pagsubok ng sistema ng babala ng barangay. "
                "Walang aksyon na kailangan. Mula sa Daluyan pilot.")
 
+def show_senders(g):
+    fn = getattr(g, "senders", None)
+    if not fn:
+        print("(%s has no sender-name lookup)" % g.name); return None
+    rows = fn()
+    if rows is None:
+        print("Could not read sender names (API error or rate limit)."); return None
+    if not rows:
+        print("No Sender Names registered on this account.")
+        print("  Semaphore refuses sends without one. Register at semaphore.co/account -")
+        print("  up to 11 alphanumeric chars, tied to your org, approval up to 5 business days.")
+        return None
+    print("Registered Sender Names:")
+    active = []
+    for row in rows:
+        name, status = row.get("name", "?"), row.get("status", "?")
+        print("  - %-12s %s" % (name, status))
+        if str(status).lower() in ("active", "approved"):
+            active.append(name)
+    return active
+
 def main():
-    if len(sys.argv) < 2:
-        print("usage: python smstest.py 09XXXXXXXXX [\"message\"]")
-        print("       (reads .env for SMS_PROVIDER + keys; env vars override)")
+    # --provider X  overrides SMS_PROVIDER for this run only
+    argv = sys.argv[1:]
+    if argv and argv[0] in ("--provider", "-p") and len(argv) > 1:
+        os.environ["SMS_PROVIDER"] = argv[1]
+        argv = argv[2:]
+    sys.argv = ["smstest.py"] + argv
+    if argv and argv[0] in ("--senders", "-s"):
+        try:
+            g = gw.get_gateway()
+        except SystemExit as e:
+            print("CONFIG ERROR\n%s" % e); return 1
+        print("Provider   : %s" % g.name)
+        show_senders(g)
+        return 0
+    if not argv:
+        print("usage: python smstest.py [--provider NAME] 09XXXXXXXXX [\"message\"]")
+        print("       python smstest.py [--provider NAME] --senders")
+        print("       providers: semaphore | iprog | philsms | unisms | traccar | mock")
+        print("       (reads .env for SMS_PROVIDER + keys; flags and env vars override)")
         return 2
-    phone = sys.argv[1].strip()
-    msg = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_MSG
+    phone = argv[0].strip()
+    msg = argv[1] if len(argv) > 1 else DEFAULT_MSG
 
     if not (phone.startswith("09") and len(phone) == 11 and phone.isdigit()) and not phone.startswith("+63"):
         print("! Phone should look like 09171234567 (or +639171234567). Got: %r" % phone)
@@ -77,6 +114,18 @@ def main():
         return 0
     print("RESULT     : FAILED")
     print("Error      : %s" % err)
+    if "sendername" in err.lower():
+        print()
+        active = show_senders(g)
+        if active:
+            print("\nRetrying with an active Sender Name: %s" % active[0])
+            g.sender = active[0]
+            ok2, err2 = g.send(phone, msg)
+            if ok2:
+                print("RESULT     : ACCEPTED using sender %s" % active[0])
+                print("Put this in prototype/.env:  SEMAPHORE_SENDER=%s" % active[0])
+                return 0
+            print("Still failing: %s" % err2)
     print("\nCommon causes: unapproved/blank sender name, zero credits, malformed number,")
     print("or content filtering (no links, no phone numbers, must not start with 'TEST').")
     return 1

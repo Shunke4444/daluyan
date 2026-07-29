@@ -80,6 +80,18 @@ class SemaphoreGateway:
         except Exception:
             return None
 
+    def senders(self):
+        """Registered Sender Names on the account, e.g. [{'name': 'DALUYANPH', 'status': 'Active'}].
+        Semaphore rejects a send outright if the account has no usable Sender Name."""
+        import requests
+        try:
+            r = requests.get(self.BASE + "/account/sendernames",
+                             params={"apikey": self.key}, timeout=TIMEOUT)
+            j = r.json()
+            return j if isinstance(j, list) else [j]
+        except Exception:
+            return None
+
 class UniSMSGateway:
     """unismsapi.com - documented REST API (docs fetched 2026-07-15).
     Auth: HTTP Basic, API secret key as username, EMPTY password.
