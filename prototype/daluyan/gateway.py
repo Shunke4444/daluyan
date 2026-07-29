@@ -35,6 +35,7 @@ class SemaphoreGateway:
     def __init__(self):
         self.key = os.environ["SEMAPHORE_API_KEY"]
         self.sender = os.environ.get("SEMAPHORE_SENDER", "")
+        self.last = None          # parsed API response of the most recent send
     def send(self, phone, body, priority=False, attempt=0):
         import requests
         data = {"apikey": self.key, "number": phone, "message": body}
@@ -43,6 +44,11 @@ class SemaphoreGateway:
         try:
             r = requests.post(self.BASE + ("/priority" if priority else "/messages"), data=data, timeout=TIMEOUT)
             if r.status_code == 200:
+                try:
+                    j = r.json()
+                    self.last = j[0] if isinstance(j, list) and j else j
+                except Exception:
+                    self.last = None
                 return True, ""
             return False, "semaphore HTTP %s: %s" % (r.status_code, r.text[:120])
         except Exception as e:
@@ -51,7 +57,11 @@ class SemaphoreGateway:
         import requests
         try:
             r = requests.get(self.BASE + "/account", params={"apikey": self.key}, timeout=TIMEOUT)
-            return "%s credits" % r.json().get("credit_balance", "?")
+            j = r.json()
+            if isinstance(j, list):
+                j = j[0] if j else {}
+            bal = j.get("credit_balance", j.get("credits"))
+            return "%s credits" % bal if bal is not None else None
         except Exception:
             return None
 

@@ -56,9 +56,24 @@ def main():
     ok, err = g.send(phone, msg, priority=False)
     if ok:
         print("RESULT     : ACCEPTED by %s%s" % (g.name, (" (%s)" % err) if err else ""))
+        detail = getattr(g, "last", None)
+        if isinstance(detail, dict):
+            for label, key in (("Message ID ", "message_id"), ("Status     ", "status"),
+                               ("Sender     ", "sender_name"), ("Network    ", "network")):
+                if detail.get(key) not in (None, ""):
+                    print("%s: %s" % (label, detail[key]))
+            if detail.get("status", "").lower() in ("queued", "pending"):
+                print("\n'Queued'/'Pending' is normal - it means the network has it.")
         print("\nThe gateway took the message. Watch the handset - PH delivery is usually")
         print("2-3 minutes. If nothing arrives, the blocker is downstream (sender ID not")
         print("approved, no credits, or network filtering), not your code.")
+        bal2 = None
+        try:
+            bal2 = g.balance()
+        except Exception:
+            pass
+        if bal2 is not None:
+            print("Balance now: %s  (was %s - a drop of 1 confirms the send was billed)" % (bal2, bal))
         return 0
     print("RESULT     : FAILED")
     print("Error      : %s" % err)
