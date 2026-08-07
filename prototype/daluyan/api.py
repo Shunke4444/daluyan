@@ -80,6 +80,26 @@ def register(app_handlers, ctx):
                 out.append(dict(r) | {"lint_errors": errs, "lint_warnings": warns})
             self.json(out)
 
+        def post(self):
+            body = self.body()
+            try:
+                template_id = int(body.get("id"))
+            except (TypeError, ValueError):
+                self.json({"error": "A template is required."}, 400); return
+            text = str(body.get("body", "")).strip()
+            if not text:
+                self.json({"error": "Template body cannot be empty."}, 400); return
+            c = C()
+            row = c.execute("SELECT * FROM alert_templates WHERE id=?", (template_id,)).fetchone()
+            if not row:
+                self.json({"error": "Template not found."}, 404); return
+            c.execute("UPDATE alert_templates SET body=?, approved_by=?, approved_at=NULL WHERE id=?",
+                      (text, "DRAFT - operator edited, needs validation", template_id))
+            c.commit()
+            updated = c.execute("SELECT * FROM alert_templates WHERE id=?", (template_id,)).fetchone()
+            errs, warns = linter.lint(updated["body"])
+            self.json(dict(updated) | {"lint_errors": errs, "lint_warnings": warns})
+
     class Alerts(Base):
         def get(self):
             out = []
@@ -185,7 +205,7 @@ def register(app_handlers, ctx):
                                  ON CONFLICT(resident_id) DO UPDATE SET archived=excluded.archived,updated_at=excluded.updated_at""",
                               (resident_id, 1 if body.get("archived") else 0, db.now()))
                 elif body["action"] == "status":
-                    allowed = {"monitoring", "preparing", "evacuating", "safe", "needs_help", "recovery"}
+                    allowed = {"monitoring", "preparing", "sheltering", "evacuating", "safe", "needs_help", "medical", "relocated", "stranded", "unreachable", "recovery"}
                     status = str(body.get("status", ""))
                     if status not in allowed:
                         self.json({"error": "Invalid flood status."}, 400); return
