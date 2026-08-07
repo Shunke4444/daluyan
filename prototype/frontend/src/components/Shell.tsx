@@ -1,11 +1,12 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Radio } from "lucide-react";
+import { Axis3D, Cog, MessageCircle } from "lucide-react";
 import { get } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export default function Shell() {
+  const location = useLocation();
   const { t, lang, setLang } = useI18n();
   const [sum, setSum] = useState<any>(null);
   useEffect(() => {
@@ -16,59 +17,44 @@ export default function Shell() {
   }, []);
 
   const tabs = [
-    { to: "/", label: t("overview") },
-    { to: "/registry", label: t("registry") },
-    { to: "/templates", label: t("templates") },
-    { to: "/audit", label: t("audit") },
-    { to: "/simulator", label: t("simulator") },
+    { to: "/", label: "Dashboard", icon: Axis3D, end: true },
+    { to: "/messages", label: "Messages", icon: MessageCircle, badge: sum?.triage },
+    { to: "/templates", label: "Templates", icon: Cog },
   ];
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Radio className="h-4.5 w-4.5" size={18} />
-            </div>
-            <div>
-              <div className="text-sm font-semibold leading-tight">Daluyan</div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Brgy Mahogany, Marilao</div>
-            </div>
-          </div>
-          <nav className="flex gap-1 text-sm">
+    <div className="daluyan-shell min-h-screen">
+      <aside className="daluyan-nav" aria-label="Primary navigation">
+        <nav className="daluyan-nav__links">
             {tabs.map((tab) => (
               <NavLink
                 key={tab.to}
                 to={tab.to}
-                end={tab.to === "/"}
+                end={tab.end}
+                aria-label={tab.label}
                 className={({ isActive }) =>
-                  cn("rounded-md px-3 py-1.5 text-zinc-600 hover:bg-zinc-100",
-                     isActive && "bg-zinc-100 font-medium text-zinc-900")
+                  cn("daluyan-nav__link", isActive && "daluyan-nav__link--active")
                 }
               >
-                {tab.label}
+                <tab.icon aria-hidden="true" strokeWidth={1.8} />
+                <span className="daluyan-nav__label">{tab.label}</span>
+                {tab.badge ? <span className="daluyan-nav__badge">{tab.badge > 99 ? "99+" : tab.badge}</span> : null}
               </NavLink>
             ))}
-          </nav>
-          <div className="ml-auto flex items-center gap-3">
-            {sum && (
-              <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                <span className={cn("h-2 w-2 rounded-full", sum.gateway === "mock" ? "bg-amber-500" : "bg-green-600")} />
-                {sum.gateway.toUpperCase()}
-                {sum.balance ? <span>· {sum.balance}</span> : null}
-              </div>
-            )}
+        </nav>
+        <div className="daluyan-nav__footer">
+          {sum && <span className={cn("daluyan-nav__status", sum.gateway === "mock" ? "bg-amber-500" : "bg-green-600")} title={`${sum.gateway} gateway`} />}
+          <div className="daluyan-nav__avatar" aria-hidden="true">You</div>
             <button
               onClick={() => setLang(lang === "en" ? "fil" : "en")}
-              className="rounded-md border px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+              className="daluyan-nav__language"
+              aria-label={`Change language to ${lang === "en" ? "Filipino" : "English"}`}
             >
               {lang === "en" ? "FIL" : "EN"}
             </button>
-          </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      </aside>
+      <main className={cn("daluyan-main mx-auto px-4 py-6", location.pathname === "/messages" ? "max-w-none" : "max-w-5xl")}>
         <Outlet />
       </main>
     </div>

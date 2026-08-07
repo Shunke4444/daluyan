@@ -135,7 +135,57 @@ def register(app_handlers, ctx):
                 "replies": [dict(r) for r in c.execute("SELECT r.*, res.name FROM replies r LEFT JOIN residents res ON res.id=r.resident_id ORDER BY r.id DESC LIMIT 200")],
             })
 
+    class Messages(Base):
+        """Conversation-shaped view over the existing residents/sends/replies tables."""
+        def get(self):
+            c = C()
+            contacts = []
+            residents = c.execute("SELECT * FROM residents ORDER BY name").fetchall()
+            for resident in residents:
+                outgoing = [dict(row) | {"direction": "out"} for row in c.execute(
+                    "SELECT id, body AS text, status, created_at AS timestamp, alert_id FROM sends WHERE resident_id=? ORDER BY created_at, id",
+                    (resident["id"],)).fetchall()]
+                incoming = [dict(row) | {"direction": "in"} for row in c.execute(
+                    "SELECT id, raw_text AS text, keyword, handled, received_at AS timestamp, alert_id FROM replies WHERE resident_id=? ORDER BY received_at, id",
+                    (resident["id"],)).fetchall()]
+                thread = sorted(outgoing + incoming, key=lambda item: (item.get("timestamp") or "", item["id"]))
+                unread = sum(1 for item in incoming if not item.get("handled"))
+                last = thread[-1] if thread else None
+                contacts.append(dict(resident) | {
+                    "messages": thread,
+                    "unread": unread,
+                    "last_message": last["text"] if last else "No messages yet",
+                    "last_timestamp": last["timestamp"] if last else resident["created_at"],
+                })
+            contacts.sort(key=lambda item: item.get("last_timestamp") or "", reverse=True)
+            templates = [dict(row) for row in c.execute(
+                "SELECT id, code, language, body FROM alert_templates ORDER BY code, language")]
+            self.json({"contacts": contacts, "templates": templates})
+
+        def post(self):
+            body = self.body()
+            try:
+                resident_id = int(body.get("resident_id"))
+            except (TypeError, ValueError):
+                self.json({"error": "A resident is required."}, 400); return
+            text = str(body.get("text", "")).strip()
+            if not text:
+                self.json({"error": "Message cannot be empty."}, 400); return
+            c = C()
+            resident = c.execute("SELECT * FROM residents WHERE id=?", (resident_id,)).fetchone()
+            if not resident:
+                self.json({"error": "Resident not found."}, 404); return
+            timestamp = db.now()
+            c.execute("""INSERT INTO sends(
+                alert_id,resident_id,phone,body,kind,status,attempts,gateway,created_at,updated_at
+                ) VALUES(NULL,?,?,?,'message','sent',1,'demo',?,?)""",
+                (resident_id, resident["phone"], text, timestamp, timestamp))
+            c.commit()
+            message_id = c.execute("SELECT last_insert_rowid() id").fetchone()["id"]
+            self.json({"id": message_id, "text": text, "direction": "out", "status": "sent", "timestamp": timestamp})
+
     app_handlers.extend([
         (r"/api/summary", Summary), (r"/api/residents", Residents), (r"/api/templates", Templates),
         (r"/api/alerts", Alerts), (r"/api/preview", Preview), (r"/api/send", Send), (r"/api/audit", Audit),
+        (r"/api/messages", Messages),
     ])
