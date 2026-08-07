@@ -151,19 +151,83 @@ def register(app_handlers, ctx):
                 thread = sorted(outgoing + incoming, key=lambda item: (item.get("timestamp") or "", item["id"]))
                 unread = sum(1 for item in incoming if not item.get("handled"))
                 last = thread[-1] if thread else None
+                details = c.execute("SELECT * FROM resident_contact_details WHERE resident_id=?", (resident["id"],)).fetchone()
+                state = c.execute("SELECT archived, flood_status FROM resident_message_state WHERE resident_id=?", (resident["id"],)).fetchone()
+                relatives = [dict(row) for row in c.execute(
+                    "SELECT id, name, relationship, phone FROM resident_relatives WHERE resident_id=? ORDER BY id", (resident["id"],))]
                 contacts.append(dict(resident) | {
                     "messages": thread,
                     "unread": unread,
                     "last_message": last["text"] if last else "No messages yet",
                     "last_timestamp": last["timestamp"] if last else resident["created_at"],
+                    "contact_details": dict(details) if details else {"email": "", "alternate_phone": "", "address": "", "notes": ""},
+                    "relatives": relatives,
+                    "archived": bool(state["archived"]) if state else False,
+                    "flood_status": (state["flood_status"] if state else None) or "monitoring",
                 })
-            contacts.sort(key=lambda item: item.get("last_timestamp") or "", reverse=True)
+            contacts.sort(key=lambda item: (bool(item["messages"]), item.get("last_timestamp") or ""), reverse=True)
             templates = [dict(row) for row in c.execute(
                 "SELECT id, code, language, body FROM alert_templates ORDER BY code, language")]
             self.json({"contacts": contacts, "templates": templates})
 
         def post(self):
             body = self.body()
+            if body.get("action") in ("archive", "status", "update_contact"):
+                try:
+                    resident_id = int(body.get("resident_id"))
+                except (TypeError, ValueError):
+                    self.json({"error": "A resident is required."}, 400); return
+                c = C()
+                if not c.execute("SELECT 1 FROM residents WHERE id=?", (resident_id,)).fetchone():
+                    self.json({"error": "Resident not found."}, 404); return
+                if body["action"] == "archive":
+                    c.execute("""INSERT INTO resident_message_state(resident_id,archived,updated_at) VALUES(?,?,?)
+                                 ON CONFLICT(resident_id) DO UPDATE SET archived=excluded.archived,updated_at=excluded.updated_at""",
+                              (resident_id, 1 if body.get("archived") else 0, db.now()))
+                elif body["action"] == "status":
+                    allowed = {"monitoring", "preparing", "evacuating", "safe", "needs_help", "recovery"}
+                    status = str(body.get("status", ""))
+                    if status not in allowed:
+                        self.json({"error": "Invalid flood status."}, 400); return
+                    c.execute("""INSERT INTO resident_message_state(resident_id,flood_status,updated_at) VALUES(?,?,?)
+                                 ON CONFLICT(resident_id) DO UPDATE SET flood_status=excluded.flood_status,updated_at=excluded.updated_at""",
+                              (resident_id, status, db.now()))
+                else:
+                    name, phone = str(body.get("name", "")).strip(), str(body.get("phone", "")).strip()
+                    if not name or not phone:
+                        self.json({"error": "Name and phone are required."}, 400); return
+                    c.execute("UPDATE residents SET name=?,phone=?,zone=?,language=?,flags=? WHERE id=?",
+                              (name, phone, str(body.get("zone", "")).strip(), body.get("language", "fil"), str(body.get("flags", "")).strip(), resident_id))
+                    c.execute("""INSERT INTO resident_contact_details(resident_id,email,alternate_phone,address,notes) VALUES(?,?,?,?,?)
+                                 ON CONFLICT(resident_id) DO UPDATE SET email=excluded.email,alternate_phone=excluded.alternate_phone,address=excluded.address,notes=excluded.notes""",
+                              (resident_id, str(body.get("email", "")).strip(), str(body.get("alternate_phone", "")).strip(), str(body.get("address", "")).strip(), str(body.get("notes", "")).strip()))
+                c.commit(); self.json({"ok": True}); return
+            if body.get("action") == "add_contact":
+                first_name = str(body.get("first_name", "")).strip()
+                last_name = str(body.get("last_name", "")).strip()
+                phone = str(body.get("phone", "")).strip()
+                if not first_name or not last_name or not phone:
+                    self.json({"error": "First name, last name, and phone number are required."}, 400); return
+                c = C()
+                try:
+                    c.execute("""INSERT INTO residents(name,phone,zone,language,flags,consent_at,created_at)
+                                 VALUES(?,?,?,?,?,?,?)""",
+                              (f"{first_name} {last_name}", phone, str(body.get("zone", "Unassigned")),
+                               body.get("language", "fil"), "", db.now(), db.now()))
+                    resident_id = c.execute("SELECT last_insert_rowid() id").fetchone()["id"]
+                    c.execute("""INSERT INTO resident_contact_details(resident_id,email,alternate_phone,address,notes)
+                                 VALUES(?,?,?,?,?)""",
+                              (resident_id, str(body.get("email", "")).strip(), str(body.get("alternate_phone", "")).strip(),
+                               str(body.get("address", "")).strip(), str(body.get("notes", "")).strip()))
+                    for relative in body.get("relatives", []):
+                        name = str(relative.get("name", "")).strip()
+                        if name:
+                            c.execute("INSERT INTO resident_relatives(resident_id,name,relationship,phone) VALUES(?,?,?,?)",
+                                      (resident_id, name, str(relative.get("relationship", "")).strip(), str(relative.get("phone", "")).strip()))
+                    c.commit()
+                except Exception as error:
+                    c.rollback(); self.json({"error": str(error)}, 400); return
+                self.json({"ok": True, "resident_id": resident_id}); return
             try:
                 resident_id = int(body.get("resident_id"))
             except (TypeError, ValueError):

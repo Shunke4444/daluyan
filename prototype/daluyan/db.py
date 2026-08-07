@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS replies(
   id INTEGER PRIMARY KEY, phone TEXT NOT NULL, resident_id INTEGER,
   keyword TEXT, raw_text TEXT NOT NULL, alert_id INTEGER,
   handled INTEGER DEFAULT 0, received_at TEXT);
+CREATE TABLE IF NOT EXISTS resident_contact_details(
+  resident_id INTEGER PRIMARY KEY, email TEXT DEFAULT '', alternate_phone TEXT DEFAULT '',
+  address TEXT DEFAULT '', notes TEXT DEFAULT '', FOREIGN KEY(resident_id) REFERENCES residents(id));
+CREATE TABLE IF NOT EXISTS resident_relatives(
+  id INTEGER PRIMARY KEY, resident_id INTEGER NOT NULL, name TEXT NOT NULL,
+  relationship TEXT DEFAULT '', phone TEXT DEFAULT '',
+  FOREIGN KEY(resident_id) REFERENCES residents(id));
+CREATE TABLE IF NOT EXISTS resident_message_state(
+  resident_id INTEGER PRIMARY KEY, archived INTEGER DEFAULT 0,
+  flood_status TEXT DEFAULT 'monitoring', updated_at TEXT,
+  FOREIGN KEY(resident_id) REFERENCES residents(id));
 """
 
 # Seed templates. DRAFT copy: must be native-speaker validated + captain-approved before live use.
@@ -68,5 +79,24 @@ def init():
         for n, ph, z, lang, fl, cons in RESIDENTS:
             c.execute("INSERT INTO residents(name,phone,zone,language,flags,consent_at,created_at) VALUES(?,?,?,?,?,?,?)",
                       (n, ph, z, lang, fl, now() if cons == "y" else None, now()))
+    if c.execute("SELECT COUNT(*) FROM sends").fetchone()[0] == 0 and c.execute("SELECT COUNT(*) FROM replies").fetchone()[0] == 0:
+        residents = c.execute("SELECT * FROM residents ORDER BY id LIMIT 5").fetchall()
+        demo_threads = [
+            ("Magandang araw po. Naka-charge na po ang cellphone namin.", "Salamat. Manatiling handa at bantayan ang susunod na abiso."),
+            ("Mataas na po ang tubig sa tapat ng bahay.", "Naitala po. Iwasan muna ang kalsada at hintayin ang update ng barangay."),
+            ("SAFE po ang buong pamilya.", "Salamat sa update. Naitala na ligtas ang inyong sambahayan."),
+            ("Kailangan po ng gamot ni Lola.", "Natanggap po. Ipinapaalam na namin ito sa health team."),
+            ("Bukas pa po ba ang daan sa covered court?", "Bukas pa ang pangunahing daan. Mag-ingat at sundin ang mga tanod."),
+        ]
+        base = datetime.datetime.now() - datetime.timedelta(hours=3)
+        for index, resident in enumerate(residents):
+            incoming, outgoing = demo_threads[index]
+            received = (base + datetime.timedelta(minutes=index * 24)).strftime("%Y-%m-%d %H:%M:%S")
+            sent = (base + datetime.timedelta(minutes=index * 24 + 4)).strftime("%Y-%m-%d %H:%M:%S")
+            c.execute("INSERT INTO replies(phone,resident_id,keyword,raw_text,handled,received_at) VALUES(?,?,NULL,?,1,?)",
+                      (resident["phone"], resident["id"], incoming, received))
+            c.execute("""INSERT INTO sends(resident_id,phone,body,kind,status,attempts,gateway,created_at,updated_at)
+                         VALUES(?,?,?,'message','sent',1,'demo',?,?)""",
+                      (resident["id"], resident["phone"], outgoing, sent, sent))
     c.commit()
     return c

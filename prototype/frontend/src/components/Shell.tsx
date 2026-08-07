@@ -54,7 +54,7 @@ export default function Shell() {
             </button>
         </div>
       </aside>
-      <main className={cn("daluyan-main mx-auto px-4 py-6", location.pathname === "/messages" ? "max-w-none" : "max-w-5xl")}>
+      <main className={cn("daluyan-main mx-auto", location.pathname === "/messages" ? "max-w-none p-0" : "max-w-5xl px-4 py-6")}>
         <Outlet />
       </main>
     </div>
